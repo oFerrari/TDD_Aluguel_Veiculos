@@ -1,7 +1,7 @@
 package entities;
 
 import java.time.LocalDate;
-import java.time.Period;
+import java.time.temporal.ChronoUnit;
 
 public class AluguelVeiculos {
 	  private String nomeCliente;
@@ -14,10 +14,14 @@ public class AluguelVeiculos {
 	    private Long kmFinal;
 	        
 	    public AluguelVeiculos() {
+	    	
 		}
 
 		public AluguelVeiculos(String nomeCliente, LocalDate dataVencimentoCnh, String veiculo, Double valorAluguel,
 				LocalDate dataRetirada, LocalDate dataDevolucao, Long kmInicial, Long kmFinal) {
+			if (dataVencimentoCnh.isBefore(LocalDate.now())) {
+	            throw new IllegalArgumentException("A CNH está vencida.");
+	        }
 			this.nomeCliente = nomeCliente;
 			this.dataVencimentoCnh = dataVencimentoCnh;
 			this.veiculo = veiculo;
@@ -27,46 +31,48 @@ public class AluguelVeiculos {
 			this.kmInicial = kmInicial;
 			this.kmFinal = kmFinal;
 		}
-	    private boolean isValidCNH(String cnh) {
-	        return cnh != null && cnh.matches("\\d{11}");
-	    }
+		
+		public void retirarVeiculo(LocalDate dataRetirada, Long kmInicial) {
+		    if (dataRetirada == null || kmInicial == null || kmInicial < 0 || !dataRetirada.equals(LocalDate.now())) {
+		        throw new IllegalArgumentException("Dados de retirada inválidos ou data não é a data atual");
+		    }
+		    this.dataRetirada = dataRetirada;
+		    this.kmInicial = kmInicial;
+		}
 
-	    private void validateCurrentDate(LocalDate date) {
-	        if (date == null || !date.equals(LocalDate.now())) {
-	            throw new IllegalArgumentException("Data fornecida não é a data atual");
-	        }
-	    }
 
-	    public void retirarVeiculo(LocalDate dataRetirada, Long kmInicial) {
-	        validateCurrentDate(dataRetirada);
-	        if (dataRetirada == null || kmInicial == null || kmInicial < 0) {
-	            throw new IllegalArgumentException("Dados de retirada inválidos");
-	        }
-	        this.dataRetirada = dataRetirada;
-	        this.kmInicial = kmInicial;
-	        long kmContratado = kmFinal - kmInicial;
-	        this.valorAluguel = kmContratado * 2.0;
-	    }
-
+	    
 	    public void devolverVeiculo(LocalDate dataDevolucao, Long kmFinal) {
 	        if (dataDevolucao == null || kmFinal == null || kmFinal < kmInicial) {
 	            throw new IllegalArgumentException("Dados de devolução inválidos");
 	        }
-
-	        if (dataDevolucao.isAfter(dataVencimentoCnh)) {
-	            long diasAtraso = Period.between(dataVencimentoCnh, dataDevolucao).getDays();
-	            this.valorAluguel += diasAtraso * (valorAluguel * 0.05); 
-	            }
-
-	        long kmContratado = kmFinal - kmInicial;
-	        if (kmFinal > this.kmFinal) {
-	            this.valorAluguel += (kmFinal - kmContratado) * 0.2;
-	        }
-
 	        this.dataDevolucao = dataDevolucao;
 	        this.kmFinal = kmFinal;
+	        
+	        calcularValorAluguel();
 	    }
-
+    
+	    public void calcularValorAluguel() {
+	    	if (this.kmFinal != null && this.kmInicial != null) {
+	    		long kmContratado = this.kmFinal - this.kmInicial;
+	    		this.valorAluguel = kmContratado * 2.0;
+	    		
+	    		long kmExcedido = (this.kmFinal - this.kmInicial) - (this.kmFinal - this.kmInicial);
+	    		if (kmExcedido > 0) {
+	    			this.valorAluguel += kmExcedido * 2.0 * 0.2;
+	    		}
+	    	}
+	    }
+	    
+	    
+	    private void calcularValorAtraso() {
+	        if (dataRetirada != null && dataDevolucao != null && dataDevolucao.isAfter(dataRetirada)) {
+	            long diasAtraso = ChronoUnit.DAYS.between(dataRetirada, dataDevolucao);
+	            double valorDiario = this.valorAluguel / (this.kmFinal - this.kmInicial);
+	            double acrescimoAtraso = valorDiario * 0.05 * diasAtraso;
+	            this.valorAluguel += acrescimoAtraso;
+	        }
+	    }
 
 		public String getNomeCliente() {
 	        return nomeCliente;
